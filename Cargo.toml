@@ -1,0 +1,12 @@
+[package]
+name = "viriformat"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+arrayvec = "0.7"
+bulletformat = "1.7.0"
+rand = "0.9"
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8.19"
