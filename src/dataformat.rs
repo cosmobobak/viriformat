@@ -118,6 +118,7 @@ impl Filter {
 }
 
 /// A game annotated with evaluations starting from a potentially custom position, with support for efficent binary serialisation and deserialisation.
+#[derive(PartialEq, Eq, Debug)]
 pub struct Game {
     /// The initial position of the self-play game.
     initial_position: marlinformat::PackedBoard,
