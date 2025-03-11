@@ -120,9 +120,9 @@ impl Filter {
 /// A game annotated with evaluations starting from a potentially custom position, with support for efficent binary serialisation and deserialisation.
 pub struct Game {
     /// The initial position of the self-play game.
-    initial_position: marlinformat::PackedBoard,
+    pub initial_position: marlinformat::PackedBoard,
     /// The moves played in the self-play game, along with the evaluation of the position in which they were played.
-    moves: Vec<(Move, marlinformat::util::I16Le)>,
+    pub moves: Vec<(Move, marlinformat::util::I16Le)>,
 }
 
 const SEQUENCE_ELEM_SIZE: usize =

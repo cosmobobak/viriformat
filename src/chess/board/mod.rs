@@ -83,9 +83,9 @@ impl UpdateBuffer {
 #[derive(Clone, PartialEq, Eq)]
 pub struct Board {
     /// The square-sets of all the pieces on the board.
-    pub(crate) pieces: PieceLayout,
+    pub pieces: PieceLayout,
     /// An array to accelerate `Board::piece_at()`.
-    piece_array: [Option<Piece>; 64],
+    pub piece_array: [Option<Piece>; 64],
     /// The side to move.
     side: Colour,
     /// The en passant square.
