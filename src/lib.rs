@@ -1,6 +1,5 @@
-
-pub mod dataformat;
 pub mod chess;
-mod rng;
-mod makemove;
+pub mod dataformat;
 mod lookups;
+mod makemove;
+mod rng;
