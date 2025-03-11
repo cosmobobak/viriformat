@@ -159,7 +159,11 @@ impl Board {
         out
     }
 
-    pub fn to_bulletformat(&self, wdl: u8, eval: i16) -> Result<bulletformat::ChessBoard, anyhow::Error> {
+    pub fn to_bulletformat(
+        &self,
+        wdl: u8,
+        eval: i16,
+    ) -> Result<bulletformat::ChessBoard, anyhow::Error> {
         let mut bbs = [0; 8];
         let piece_layout = &self.pieces;
         bbs[0] = piece_layout.occupied_co(Colour::White).inner();
@@ -177,9 +181,7 @@ impl Board {
             f32::from(wdl) / 2.0,
         )
         .map_err(|e| anyhow::anyhow!(e))
-        .with_context(|| {
-            "Failed to convert raw components into bulletformat::ChessBoard."
-        })?;
+        .with_context(|| "Failed to convert raw components into bulletformat::ChessBoard.")?;
         Ok(bulletformat)
     }
 
