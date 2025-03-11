@@ -26,19 +26,19 @@ pub enum WDL {
 #[serde(default)]
 pub struct Filter {
     /// Filter out positions that have a ply count less than this value.
-    min_ply: u32,
+    pub min_ply: u32,
     /// Filter out positions that have fewer pieces on the board than this value.
-    min_pieces: u32,
+    pub min_pieces: u32,
     /// Filter out positions that have an absolute evaluation above this value.
-    max_eval: u32,
+    pub max_eval: u32,
     /// Filter out positions where a tactical move was made.
-    filter_tactical: bool,
+    pub filter_tactical: bool,
     /// Filter out positions that are in check.
-    filter_check: bool,
+    pub filter_check: bool,
     /// Filter out positions where a castling move was made.
-    filter_castling: bool,
+    pub filter_castling: bool,
     /// Filter out positions where eval diverges from WDL by more than this value.
-    max_eval_incorrectness: u32,
+    pub max_eval_incorrectness: u32,
 }
 
 impl Default for Filter {
