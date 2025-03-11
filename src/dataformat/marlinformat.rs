@@ -123,7 +123,7 @@ impl PackedBoard {
 }
 
 impl Board {
-    pub fn pack(&self, eval: i16, wdl: u8, extra: u8) -> PackedBoard {
+    pub fn to_marlinformat(&self, eval: i16, wdl: u8, extra: u8) -> PackedBoard {
         PackedBoard::pack(self, eval, wdl, extra)
     }
 

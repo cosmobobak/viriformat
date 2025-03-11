@@ -1,13 +1,12 @@
 use std::path::Path;
 
 use crate::chess::{
-        board::{Board, GameOutcome},
-        chessmove::Move,
-        piece::{Colour, PieceType},
-    };
+    board::{Board, GameOutcome},
+    chessmove::Move,
+};
 
 use self::marlinformat::{util::I16Le, PackedBoard};
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 mod marlinformat;
@@ -145,7 +144,7 @@ impl Game {
 
     pub fn new(initial_position: &Board) -> Self {
         Self {
-            initial_position: initial_position.pack(0, 0, 0),
+            initial_position: initial_position.to_marlinformat(0, 0, 0),
             moves: Vec::new(),
         }
     }
@@ -286,7 +285,8 @@ impl Game {
         for (mv, eval) in &self.moves {
             let eval = eval.get();
             if !filter.should_filter(*mv, i32::from(eval), &board, outcome) {
-                callback(board.pack(eval, wdl, 0))?;
+                let marlinformat = board.to_marlinformat(eval, wdl, 0);
+                callback(marlinformat)?;
             }
             board.make_move_simple(*mv);
         }
@@ -307,28 +307,8 @@ impl Game {
         for (mv, eval) in &self.moves {
             let eval = eval.get();
             if !filter.should_filter(*mv, i32::from(eval), &board, outcome) {
-                let mut bbs = [0; 8];
-                let piece_layout = &board.pieces;
-                bbs[0] = piece_layout.occupied_co(Colour::White).inner();
-                bbs[1] = piece_layout.occupied_co(Colour::Black).inner();
-                bbs[2] = piece_layout.of_type(PieceType::Pawn).inner();
-                bbs[3] = piece_layout.of_type(PieceType::Knight).inner();
-                bbs[4] = piece_layout.of_type(PieceType::Bishop).inner();
-                bbs[5] = piece_layout.of_type(PieceType::Rook).inner();
-                bbs[6] = piece_layout.of_type(PieceType::Queen).inner();
-                bbs[7] = piece_layout.of_type(PieceType::King).inner();
-                callback(
-                    bulletformat::ChessBoard::from_raw(
-                        bbs,
-                        (board.turn() != Colour::White).into(),
-                        eval,
-                        f32::from(wdl) / 2.0,
-                    )
-                    .map_err(|e| anyhow!(e))
-                    .with_context(|| {
-                        "Failed to convert raw components into bulletformat::ChessBoard."
-                    })?,
-                )?;
+                let bulletformat = board.to_bulletformat(wdl, eval)?;
+                callback(bulletformat)?;
             }
             board.make_move_simple(*mv);
         }
@@ -345,7 +325,7 @@ impl Game {
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod tests {
-    use crate::chess::CHESS960;
+    use crate::chess::{piece::Colour, CHESS960};
 
     use super::*;
 
