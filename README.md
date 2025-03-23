@@ -1,0 +1,1 @@
+viriformat is a crate for the data-representation used by the viridithas chess engine.
