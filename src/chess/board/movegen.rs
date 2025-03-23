@@ -973,10 +973,10 @@ pub fn synced_perft(pos: &mut Board, depth: usize) -> u64 {
 #[cfg(test)]
 mod tests {
     use crate::chess::{
-            board::movegen::{king_attacks, knight_attacks},
-            squareset::SquareSet,
-            types::Square,
-        };
+        board::movegen::{king_attacks, knight_attacks},
+        squareset::SquareSet,
+        types::Square,
+    };
 
     #[test]
     fn python_chess_validation() {

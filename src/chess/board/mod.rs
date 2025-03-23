@@ -83,9 +83,9 @@ impl UpdateBuffer {
 #[derive(Clone, PartialEq, Eq)]
 pub struct Board {
     /// The square-sets of all the pieces on the board.
-    pub(crate) pieces: PieceLayout,
+    pub pieces: PieceLayout,
     /// An array to accelerate `Board::piece_at()`.
-    piece_array: [Option<Piece>; 64],
+    pub piece_array: [Option<Piece>; 64],
     /// The side to move.
     side: Colour,
     /// The en passant square.
@@ -157,6 +157,32 @@ impl Board {
         };
         out.reset();
         out
+    }
+
+    pub fn to_bulletformat(
+        &self,
+        wdl: u8,
+        eval: i16,
+    ) -> Result<bulletformat::ChessBoard, anyhow::Error> {
+        let mut bbs = [0; 8];
+        let piece_layout = &self.pieces;
+        bbs[0] = piece_layout.occupied_co(Colour::White).inner();
+        bbs[1] = piece_layout.occupied_co(Colour::Black).inner();
+        bbs[2] = piece_layout.of_type(PieceType::Pawn).inner();
+        bbs[3] = piece_layout.of_type(PieceType::Knight).inner();
+        bbs[4] = piece_layout.of_type(PieceType::Bishop).inner();
+        bbs[5] = piece_layout.of_type(PieceType::Rook).inner();
+        bbs[6] = piece_layout.of_type(PieceType::Queen).inner();
+        bbs[7] = piece_layout.of_type(PieceType::King).inner();
+        let bulletformat = bulletformat::ChessBoard::from_raw(
+            bbs,
+            (self.turn() != Colour::White).into(),
+            eval,
+            f32::from(wdl) / 2.0,
+        )
+        .map_err(|e| anyhow::anyhow!(e))
+        .with_context(|| "Failed to convert raw components into bulletformat::ChessBoard.")?;
+        Ok(bulletformat)
     }
 
     pub const fn ep_sq(&self) -> Option<Square> {

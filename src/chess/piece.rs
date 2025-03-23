@@ -127,7 +127,7 @@ impl PieceType {
     }
 
     /// Construct a `PieceType` from an index without bounds checking.
-    /// 
+    ///
     /// # Safety
     /// The caller must ensure that `v` is a valid index for the `PieceType` enum.
     pub const unsafe fn from_index_unchecked(v: u8) -> Self {

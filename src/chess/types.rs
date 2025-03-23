@@ -238,7 +238,7 @@ impl Square {
 
     /// Construct a square from an inner value without checking that it is within
     /// the valid range of `0..64`.
-    /// 
+    ///
     /// # Safety
     /// You may only call this function with value of `inner` less than 64.
     pub const unsafe fn new_unchecked(inner: u8) -> Self {
@@ -325,7 +325,7 @@ impl Square {
 
     /// Add an offset to a square without checking that the result is within
     /// the valid range of `0..64`.
-    /// 
+    ///
     /// # Safety
     /// You may not call this function with a square and offset such that
     /// `square as u8 + offset` is outwith `0..64`.

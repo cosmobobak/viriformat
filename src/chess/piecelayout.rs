@@ -9,8 +9,8 @@ use crate::chess::{
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct PieceLayout {
-    pieces: [SquareSet; 6],
-    colours: [SquareSet; 2],
+    pub pieces: [SquareSet; 6],
+    pub colours: [SquareSet; 2],
 }
 
 impl PieceLayout {
