@@ -23,8 +23,8 @@ A `PackedBoard` is a structure of:
   - The most-significant bit is clear if white is to move, and set if black is to move.
 - An 8-bit halfmove clock.
   - (This field may be left at zero.)
-- A 16-bit fullmove counter, which must be non-zero.
-  - (This field may be left at one.)
+- A 16-bit fullmove counter.
+  - (This field may be left at zero.)
 - A `Score` for the position.
   - (This field may be left at zero.)
 - An 8-bit game-result field; a black win is 0, a draw is 1, a white win is 2. No other values are valid.

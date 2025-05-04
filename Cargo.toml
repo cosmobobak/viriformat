@@ -1,9 +1,9 @@
 [package]
 name = "viriformat"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 license = "MIT"
-description = "A library for the data-representation used by the viridithas chess engine"
+description = "A library for the data-representation used by the viridithas chess engine."
 
 [dependencies]
 anyhow = "1.0"

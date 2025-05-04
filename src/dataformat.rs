@@ -247,6 +247,26 @@ impl Game {
         })
     }
 
+    /// Just deserialises the bytes of one game into a buffer, without checking the validity of the moves.
+    /// This is used for fast deserialisation of games that are already known to be valid.
+    pub fn deserialise_fast_into_buffer(
+        reader: &mut impl std::io::BufRead,
+        buffer: &mut Vec<u8>,
+    ) -> std::io::Result<()> {
+        let mut initial_position = [0; std::mem::size_of::<marlinformat::PackedBoard>()];
+        reader.read_exact(&mut initial_position)?;
+        buffer.extend_from_slice(&initial_position);
+        loop {
+            let mut buf = [0; SEQUENCE_ELEM_SIZE];
+            reader.read_exact(&mut buf)?;
+            if buf == NULL_TERMINATOR {
+                break;
+            }
+            buffer.extend_from_slice(&buf);
+        }
+        Ok(())
+    }
+
     /// Exposes a reference to each position and associated evaluation in the game sequentially, via a callback.
     pub fn visit_positions(&self, mut callback: impl FnMut(&Board, i32)) {
         let (mut board, _, _, _) = self.initial_position.unpack();
