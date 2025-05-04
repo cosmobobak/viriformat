@@ -259,10 +259,10 @@ impl Game {
         loop {
             let mut buf = [0; SEQUENCE_ELEM_SIZE];
             reader.read_exact(&mut buf)?;
+            buffer.extend_from_slice(&buf);
             if buf == NULL_TERMINATOR {
                 break;
             }
-            buffer.extend_from_slice(&buf);
         }
         Ok(())
     }
