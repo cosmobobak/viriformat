@@ -7,6 +7,7 @@ use crate::chess::{
 
 use self::marlinformat::{util::I16Le, PackedBoard};
 use anyhow::Context;
+use rand::{rngs::ThreadRng, Rng};
 use serde::{Deserialize, Serialize};
 
 mod marlinformat;
@@ -38,6 +39,20 @@ pub struct Filter {
     pub filter_castling: bool,
     /// Filter out positions where eval diverges from WDL by more than this value.
     pub max_eval_incorrectness: u32,
+    /// Whether to randomly skip positions.
+    pub random_fen_skipping: bool,
+    /// The probability of skipping a position when `random_fen_skipping` is enabled.
+    pub random_fen_skip_probability: f64,
+    /// Whether to skip positions based on the WDL model.
+    pub wld_filtered: bool,
+    /// The first set of parameters for the WDL model.
+    pub wdl_model_params_a: [f64; 4],
+    /// The second set of parameters for the WDL model.
+    pub wdl_model_params_b: [f64; 4],
+    /// The centipawn normalisation factor for the WDL model.
+    pub normalise_to_pawn_value: i32,
+    /// The internal heuristic scale factor for the WDL model.
+    pub wdl_heuristic_scale: f64,
 }
 
 impl Default for Filter {
@@ -50,6 +65,18 @@ impl Default for Filter {
             filter_check: true,
             filter_castling: false,
             max_eval_incorrectness: u32::MAX,
+            random_fen_skipping: false,
+            random_fen_skip_probability: 0.0,
+            wld_filtered: false,
+            wdl_model_params_a: [6.871_558_62, -39.652_263_91, 90.684_603_52, 170.669_963_64],
+            wdl_model_params_b: [
+                -7.198_907_10,
+                56.139_471_85,
+                -139.910_911_83,
+                182.810_074_27,
+            ],
+            normalise_to_pawn_value: 229,
+            wdl_heuristic_scale: 1.5,
         }
     }
 }
@@ -63,9 +90,52 @@ impl Filter {
         filter_check: false,
         filter_castling: false,
         max_eval_incorrectness: u32::MAX,
+        random_fen_skipping: false,
+        random_fen_skip_probability: 0.0,
+        wld_filtered: false,
+        wdl_model_params_a: [0.0; 4],
+        wdl_model_params_b: [0.0; 4],
+        normalise_to_pawn_value: 100,
+        wdl_heuristic_scale: 1.0,
     };
 
-    pub fn should_filter(&self, mv: Move, eval: i32, board: &Board, wdl: WDL) -> bool {
+    /// Adapted from nnue-pytorch.
+    fn wdl_model(&self, ply: usize, eval: i32) -> (f64, f64, f64) {
+        let m = std::cmp::min(240, ply) as f64 / 64.0;
+
+        let p_as = &self.wdl_model_params_a;
+        let p_bs = &self.wdl_model_params_b;
+
+        let a = p_as[0].mul_add(m, p_as[1]).mul_add(m, p_as[2]).mul_add(m, p_as[3]);
+        let b = p_bs[0].mul_add(m, p_bs[1]).mul_add(m, p_bs[2]).mul_add(m, p_bs[3]);
+
+        let b = b * self.wdl_heuristic_scale;
+
+        let x = f64::clamp(f64::from(100 * eval) / f64::from(self.normalise_to_pawn_value), -2000.0, 2000.0);
+        let w = 1.0 / (1.0 + f64::exp((a - x) / b));
+        let l = 1.0 / (1.0 + f64::exp((a + x) / b));
+        let d = 1.0 - w - l;
+
+        (w, l, d)
+    }
+
+    fn result_chance(&self, ply: usize, eval: i32, wdl: WDL) -> f64 {
+        let (win, loss, draw) = self.wdl_model(ply, eval);
+        match wdl {
+            WDL::Win => win,
+            WDL::Loss => loss,
+            WDL::Draw => draw,
+        }
+    }
+
+    pub fn should_filter(
+        &self,
+        mv: Move,
+        eval: i32,
+        board: &Board,
+        wdl: WDL,
+        rng: &mut ThreadRng,
+    ) -> bool {
         if board.ply() < self.min_ply as usize {
             return true;
         }
@@ -82,6 +152,12 @@ impl Filter {
             return true;
         }
         if self.filter_castling && mv.is_castle() {
+            return true;
+        }
+        if self.random_fen_skipping && rng.random_bool(self.random_fen_skip_probability) {
+            return true;
+        }
+        if self.wld_filtered && rng.random_bool(self.result_chance(board.ply(), eval, wdl)) {
             return true;
         }
         if self.max_eval_incorrectness != u32::MAX {
@@ -249,6 +325,9 @@ impl Game {
 
     /// Just deserialises the bytes of one game into a buffer, without checking the validity of the moves.
     /// This is used for fast deserialisation of games that are already known to be valid.
+    ///
+    /// WARNING: This function does not clear the buffer, so it will append to the existing contents.
+    /// It is the caller's responsibility to ensure that the buffer is cleared when necessary.
     pub fn deserialise_fast_into_buffer(
         reader: &mut impl std::io::BufRead,
         buffer: &mut Vec<u8>,
@@ -279,12 +358,23 @@ impl Game {
 
     /// Internally counts how many positions would pass the filter in this game.
     pub fn filter_pass_count(&self, filter: &Filter) -> u64 {
+        self.filter_pass_count_with_filter_callback(|mv, eval, board, outcome, rng| {
+            filter.should_filter(mv, eval, board, outcome, rng)
+        })
+    }
+
+    /// Internally counts how many positions would pass the filter in this game.
+    pub fn filter_pass_count_with_filter_callback(
+        &self,
+        mut should_filter: impl FnMut(Move, i32, &Board, WDL, &mut ThreadRng) -> bool,
+    ) -> u64 {
+        let mut rng = rand::rng();
         let mut cnt = 0;
         let (mut board, _, wdl, _) = self.initial_position.unpack();
         let outcome = WDL::from_packed(wdl);
         for (mv, eval) in &self.moves {
             let eval = eval.get();
-            if !filter.should_filter(*mv, i32::from(eval), &board, outcome) {
+            if !should_filter(*mv, i32::from(eval), &board, outcome, &mut rng) {
                 cnt += 1;
             }
             board.make_move_simple(*mv);
@@ -296,16 +386,29 @@ impl Game {
     /// Converts the game into a sequence of marlinformat `PackedBoard` objects, yielding only those positions that pass the filter.
     pub fn splat_to_marlinformat(
         &self,
-        mut callback: impl FnMut(marlinformat::PackedBoard) -> anyhow::Result<()>,
+        callback: impl FnMut(marlinformat::PackedBoard) -> anyhow::Result<()>,
         filter: &Filter,
     ) -> anyhow::Result<()> {
+        self.splat_to_marlinformat_with_filter_callback(
+            callback,
+            |mv, eval, board, outcome, rng| filter.should_filter(mv, eval, board, outcome, rng),
+        )
+    }
+
+    /// Converts the game into a sequence of marlinformat `PackedBoard` objects, yielding only those positions that pass the filter.
+    pub fn splat_to_marlinformat_with_filter_callback(
+        &self,
+        mut callback: impl FnMut(marlinformat::PackedBoard) -> anyhow::Result<()>,
+        mut should_filter: impl FnMut(Move, i32, &Board, WDL, &mut ThreadRng) -> bool,
+    ) -> anyhow::Result<()> {
+        let mut rng = rand::rng();
         let (mut board, _, wdl, _) = self.initial_position.unpack();
         let outcome = WDL::from_packed(wdl);
 
         // record all the positions that pass the filter.
         for (mv, eval) in &self.moves {
             let eval = eval.get();
-            if !filter.should_filter(*mv, i32::from(eval), &board, outcome) {
+            if !should_filter(*mv, i32::from(eval), &board, outcome, &mut rng) {
                 let marlinformat = board.to_marlinformat(eval, wdl, 0);
                 callback(marlinformat)?;
             }
@@ -318,16 +421,29 @@ impl Game {
     /// Converts the game into a sequence of bulletformat `ChessBoard` objects, yielding only those positions that pass the filter.
     pub fn splat_to_bulletformat(
         &self,
-        mut callback: impl FnMut(bulletformat::ChessBoard) -> anyhow::Result<()>,
+        callback: impl FnMut(bulletformat::ChessBoard) -> anyhow::Result<()>,
         filter: &Filter,
     ) -> anyhow::Result<()> {
+        self.splat_to_bulletformat_with_filter_callback(
+            callback,
+            |mv, eval, board, outcome, rng| filter.should_filter(mv, eval, board, outcome, rng),
+        )
+    }
+
+    /// Converts the game into a sequence of bulletformat `ChessBoard` objects, yielding only those positions that pass the filter.
+    pub fn splat_to_bulletformat_with_filter_callback(
+        &self,
+        mut callback: impl FnMut(bulletformat::ChessBoard) -> anyhow::Result<()>,
+        mut should_filter: impl FnMut(Move, i32, &Board, WDL, &mut ThreadRng) -> bool,
+    ) -> anyhow::Result<()> {
+        let mut rng = rand::rng();
         let (mut board, _, wdl, _) = self.initial_position.unpack();
         let outcome = WDL::from_packed(wdl);
 
         // record all the positions that pass the filter.
         for (mv, eval) in &self.moves {
             let eval = eval.get();
-            if !filter.should_filter(*mv, i32::from(eval), &board, outcome) {
+            if !should_filter(*mv, i32::from(eval), &board, outcome, &mut rng) {
                 let bulletformat = board.to_bulletformat(wdl, eval)?;
                 callback(bulletformat)?;
             }
