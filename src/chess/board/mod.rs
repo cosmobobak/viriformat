@@ -1882,7 +1882,7 @@ impl Board {
         let rook_material = 5 * self.pieces.all_rooks().count();
         let queen_material = 9 * self.pieces.all_queens().count();
 
-        pawn_material + knight_material + bishop_material + bishop_material + rook_material + queen_material
+        pawn_material + knight_material + bishop_material + rook_material + queen_material
     }
 
 }
