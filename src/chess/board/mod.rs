@@ -1874,6 +1874,17 @@ impl Board {
             assert!(!self.make_move_simple(mv));
         }
     }
+
+    pub fn material_count(&self) -> u32 {
+        let pawn_material = 1 * self.pieces.all_pawns().count();
+        let knight_material = 3 * self.pieces.all_knights().count();
+        let bishop_material = 3 * self.pieces.all_bishops().count();
+        let rook_material = 5 * self.pieces.all_rooks().count();
+        let queen_material = 9 * self.pieces.all_queens().count();
+
+        pawn_material + knight_material + bishop_material + rook_material + queen_material
+    }
+
 }
 
 #[allow(dead_code)]
