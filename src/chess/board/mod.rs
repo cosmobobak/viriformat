@@ -1875,6 +1875,7 @@ impl Board {
         }
     }
 
+    #[allow(clippy::identity_op)]
     pub fn material_count(&self) -> u32 {
         let pawn_material = 1 * self.pieces.all_pawns().count();
         let knight_material = 3 * self.pieces.all_knights().count();
@@ -1884,7 +1885,6 @@ impl Board {
 
         pawn_material + knight_material + bishop_material + rook_material + queen_material
     }
-
 }
 
 #[allow(dead_code)]

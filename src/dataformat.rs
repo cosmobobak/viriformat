@@ -108,13 +108,20 @@ impl Filter {
     };
 
     fn wdl_model(&self, material: u32, eval: i32) -> (f64, f64, f64) {
-        let m = (material.clamp(self.material_min, self.material_max) as f64) / (self.mom_target as f64);
+        let m = (material.clamp(self.material_min, self.material_max) as f64)
+            / (self.mom_target as f64);
 
         let p_as = &self.wdl_model_params_a;
         let p_bs = &self.wdl_model_params_b;
 
-        let a = p_as[0].mul_add(m, p_as[1]).mul_add(m, p_as[2]).mul_add(m, p_as[3]);
-        let b = p_bs[0].mul_add(m, p_bs[1]).mul_add(m, p_bs[2]).mul_add(m, p_bs[3]);
+        let a = p_as[0]
+            .mul_add(m, p_as[1])
+            .mul_add(m, p_as[2])
+            .mul_add(m, p_as[3]);
+        let b = p_bs[0]
+            .mul_add(m, p_bs[1])
+            .mul_add(m, p_bs[2])
+            .mul_add(m, p_bs[3]);
 
         let b = b * self.wdl_heuristic_scale;
 
@@ -164,7 +171,9 @@ impl Filter {
         if self.random_fen_skipping && rng.random_bool(self.random_fen_skip_probability) {
             return true;
         }
-        if self.wdl_filtered && rng.random_bool(self.result_chance(board.material_count(), eval, wdl)) {
+        if self.wdl_filtered
+            && rng.random_bool(self.result_chance(board.material_count(), eval, wdl))
+        {
             return true;
         }
         if self.max_eval_incorrectness != u32::MAX {
