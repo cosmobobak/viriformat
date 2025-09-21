@@ -172,7 +172,7 @@ impl Filter {
             return true;
         }
         if self.wdl_filtered
-            && rng.random_bool(self.result_chance(board.material_count(), eval, wdl))
+            && rng.random_bool(1.0 - self.result_chance(board.material_count(), eval, wdl))
         {
             return true;
         }
