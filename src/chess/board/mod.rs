@@ -21,7 +21,6 @@ use crate::{
         piece::{Black, Col, Colour, Piece, PieceType, White},
         squareset::SquareSet,
         types::{CastlingRights, CheckState, File, Rank, Square, Undo},
-        CHESS960,
     },
     // cuckoo,
     makemove::{hash_castling, hash_ep, hash_piece, hash_side},
@@ -108,9 +107,10 @@ pub struct Board {
     /// The Zobrist hash of the major pieces on the board.
     major_key: u64,
 
-    /// Squares that the opponent attacks
+    /// Squares that the opponent attacks.
     threats: Threats,
 
+    // Denotes the variant.
     chess960: bool;
 
     height: usize,
@@ -705,7 +705,7 @@ impl Board {
     }
 
     pub fn set_startpos(&mut self, chess960: bool) {
-        let starting_fen = if self.chess960.load(Ordering::SeqCst) {
+        let starting_fen = if self.chess960 {
             Self::STARTING_FEN_960
         } else {
             Self::STARTING_FEN
@@ -754,7 +754,7 @@ impl Board {
         match castling_part {
             None => bail!("FEN string is invalid, expected castling part."),
             Some(b"-") => self.castle_perm = CastlingRights::NONE,
-            Some(castling) if !self.chess960.load(Ordering::SeqCst) => {
+            Some(castling) if !self.chess960 => {
                 for &c in castling {
                     match c {
                         b'K' => self.castle_perm.wk = Some(Square::H1),
@@ -1610,7 +1610,7 @@ impl Board {
         let mut list = MoveList::new();
         self.generate_moves(&mut list);
 
-        let frc_cleanup = !self.chess960.load(Ordering::Relaxed);
+        let frc_cleanup = !self.chess960;
         let res = list
             .iter_moves()
             .copied()

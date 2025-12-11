@@ -1,5 +1,3 @@
-use std::sync::atomic::AtomicBool;
-
 pub mod board;
 pub mod chessmove;
 mod magic;
