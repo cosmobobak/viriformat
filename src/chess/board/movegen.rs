@@ -664,7 +664,7 @@ impl Board {
     fn generate_castling_moves_for<C: Col>(&self, move_list: &mut MoveList) {
         let occupied = self.pieces.occupied();
 
-        if CHESS960.load(Ordering::Relaxed) {
+        if self.chess960.load(Ordering::Relaxed) {
             let king_sq = self.king_sq(C::COLOUR);
             if self.sq_attacked(king_sq, C::Opposite::COLOUR) {
                 return;
