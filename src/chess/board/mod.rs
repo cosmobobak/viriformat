@@ -1,12 +1,9 @@
 pub mod movegen;
 pub mod validation;
 
-use std::{
-    fmt::{Debug, Display, Formatter},
-    sync::atomic::Ordering,
-};
+use std::fmt::{Debug, Display, Formatter};
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 
 use arrayvec::ArrayVec;
 use movegen::RAY_BETWEEN;
@@ -15,17 +12,14 @@ use rand::{rngs::ThreadRng, seq::IndexedRandom};
 use crate::{
     chess::{
         board::movegen::{
-            bishop_attacks, king_attacks, knight_attacks, pawn_attacks, rook_attacks, MoveList,
+            MoveList, bishop_attacks, king_attacks, knight_attacks, pawn_attacks, rook_attacks,
         },
         chessmove::Move,
         piece::{Black, Col, Colour, Piece, PieceType, White},
         squareset::SquareSet,
         types::{CastlingRights, CheckState, File, Rank, Square, Undo},
     },
-    // cuckoo,
     makemove::{hash_castling, hash_ep, hash_piece, hash_side},
-    // search::pv::PVariation,
-    // threadlocal::ThreadData,
 };
 
 use crate::chess::piecelayout::{PieceLayout, Threats};
@@ -111,7 +105,7 @@ pub struct Board {
     threats: Threats,
 
     // Denotes the variant.
-    chess960: bool;
+    chess960: bool,
 
     height: usize,
     history: Vec<Undo>,
@@ -156,6 +150,7 @@ impl Board {
             threats: Threats::default(),
             castle_perm: CastlingRights::NONE,
             history: Vec::new(),
+            chess960: true,
         };
         out.reset();
         out
@@ -413,7 +408,7 @@ impl Board {
         self.key = 0;
         self.pawn_key = 0;
         self.threats = Threats::default();
-        self.chess960 = false;
+        self.chess960 = true;
         self.history.clear();
     }
 
@@ -777,20 +772,35 @@ impl Board {
                 if white_king.rank() != Rank::One
                     && shredder_castling.iter().any(u8::is_ascii_uppercase)
                 {
-                    bail!(format!("FEN string is invalid, white king is not on the back rank, but got uppercase castling characters, implying present castling rights, got \"{}\"", std::str::from_utf8(shredder_castling).unwrap_or("<invalid utf8>")));
+                    bail!(format!(
+                        "FEN string is invalid, white king is not on the back rank, but got uppercase castling characters, implying present castling rights, got \"{}\"",
+                        std::str::from_utf8(shredder_castling).unwrap_or("<invalid utf8>")
+                    ));
                 }
                 if black_king.rank() != Rank::Eight
                     && shredder_castling.iter().any(u8::is_ascii_lowercase)
                 {
-                    bail!(format!("FEN string is invalid, black king is not on the back rank, but got lowercase castling characters, implying present castling rights, got \"{}\"", std::str::from_utf8(shredder_castling).unwrap_or("<invalid utf8>")));
+                    bail!(format!(
+                        "FEN string is invalid, black king is not on the back rank, but got lowercase castling characters, implying present castling rights, got \"{}\"",
+                        std::str::from_utf8(shredder_castling).unwrap_or("<invalid utf8>")
+                    ));
                 }
                 for &c in shredder_castling {
                     match c {
+                        b'K' => self.castle_perm.wk = Some(Square::H1),
+                        b'Q' => self.castle_perm.wq = Some(Square::A1),
+                        b'k' => self.castle_perm.bk = Some(Square::H8),
+                        b'q' => self.castle_perm.bq = Some(Square::A8),
                         c if c.is_ascii_uppercase() => {
                             let file = File::from_index(c - b'A').unwrap();
                             let king_file = white_king.file();
                             if file == king_file {
-                                bail!(format!("FEN string is invalid, white king is on file {:?}, but got castling rights on that file - got \"{}\"", king_file, std::str::from_utf8(shredder_castling).unwrap_or("<invalid utf8>")));
+                                bail!(format!(
+                                    "FEN string is invalid, white king is on file {:?}, but got castling rights on that file - got \"{}\"",
+                                    king_file,
+                                    std::str::from_utf8(shredder_castling)
+                                        .unwrap_or("<invalid utf8>")
+                                ));
                             }
                             let sq = Square::from_rank_file(Rank::One, file);
                             if file > king_file {
@@ -805,7 +815,12 @@ impl Board {
                             let file = File::from_index(c - b'a').unwrap();
                             let king_file = black_king.file();
                             if file == king_file {
-                                bail!(format!("FEN string is invalid, black king is on file {:?}, but got castling rights on that file - got \"{}\"", king_file, std::str::from_utf8(shredder_castling).unwrap_or("<invalid utf8>")));
+                                bail!(format!(
+                                    "FEN string is invalid, black king is on file {:?}, but got castling rights on that file - got \"{}\"",
+                                    king_file,
+                                    std::str::from_utf8(shredder_castling)
+                                        .unwrap_or("<invalid utf8>")
+                                ));
                             }
                             let sq = Square::from_rank_file(Rank::Eight, file);
                             if file > king_file {
@@ -817,7 +832,10 @@ impl Board {
                             }
                         }
                         _ => {
-                            bail!(format!("FEN string is invalid, expected castling part to be of the form 'AHah', 'Bd', or '-', got \"{}\"", std::str::from_utf8(shredder_castling).unwrap_or("<invalid utf8>")));
+                            bail!(format!(
+                                "FEN string is invalid, expected castling part to be of the form 'AHah', 'Bd', or '-', got \"{}\"",
+                                std::str::from_utf8(shredder_castling).unwrap_or("<invalid utf8>")
+                            ));
                         }
                     }
                 }
@@ -879,13 +897,13 @@ impl Board {
             None => bail!("FEN string is invalid, expected fullmove number part.".to_string()),
             Some(fullmove_number) => {
                 let fullmove_number = std::str::from_utf8(fullmove_number)
-                    .with_context(|| {
-                        "FEN string is invalid, expected fullmove number part to be valid UTF-8"
-                    })?
+                    .with_context(
+                        || "FEN string is invalid, expected fullmove number part to be valid UTF-8",
+                    )?
                     .parse::<usize>()
-                    .with_context(|| {
-                        "FEN string is invalid, expected fullmove number part to be a number"
-                    })?;
+                    .with_context(
+                        || "FEN string is invalid, expected fullmove number part to be a number",
+                    )?;
                 self.ply = (fullmove_number - 1) * 2;
                 if self.side == Colour::Black {
                     self.ply += 1;
@@ -981,10 +999,10 @@ impl Board {
             return false;
         }
 
-        if let Some(captured_piece) = captured_piece {
-            if captured_piece.colour() == self.side {
-                return false;
-            }
+        if let Some(captured_piece) = captured_piece
+            && captured_piece.colour() == self.side
+        {
+            return false;
         }
 
         if moved_piece.piece_type() != PieceType::Pawn
@@ -1611,8 +1629,8 @@ impl Board {
         self.generate_moves(&mut list);
 
         let frc_cleanup = !self.chess960;
-        let res = list
-            .iter_moves()
+
+        list.iter_moves()
             .copied()
             .find(|&m| {
                 let m_to = if frc_cleanup && m.is_castle() {
@@ -1634,9 +1652,7 @@ impl Board {
                         || m.promotion_type().and_then(PieceType::promo_char).unwrap()
                             == san_bytes[4] as char)
             })
-            .with_context(|| format!("illegal move: {}", uci));
-
-        res
+            .with_context(|| format!("illegal move: {}", uci))
     }
 
     pub fn san(&mut self, m: Move) -> Option<String> {
@@ -1700,8 +1716,9 @@ impl Board {
             None => "",
             _ => unreachable!(),
         };
-        let san =
-            format!("{piece_prefix}{disambiguator1}{disambiguator2}{capture_sigil}{to_sq}{promo_str}{check_char}");
+        let san = format!(
+            "{piece_prefix}{disambiguator1}{disambiguator2}{capture_sigil}{to_sq}{promo_str}{check_char}"
+        );
         Some(san)
     }
 
@@ -1935,7 +1952,7 @@ impl GameOutcome {
 impl Default for Board {
     fn default() -> Self {
         let mut out = Self::new();
-        out.set_startpos();
+        out.set_startpos(true);
         out
     }
 }
@@ -2029,11 +2046,11 @@ mod tests {
 
         let mut board_1 = Board::new();
         board_1
-            .set_from_fen(Board::STARTING_FEN, false)
+            .set_from_fen(Board::STARTING_FEN, true)
             .expect("setfen failed.");
         board_1.check_validity().unwrap();
 
-        let board_2 = Board::from_fen(Board::STARTING_FEN, false).expect("setfen failed.");
+        let board_2 = Board::from_fen(Board::STARTING_FEN, true).expect("setfen failed.");
         board_2.check_validity().unwrap();
 
         assert_eq!(board_1, board_2);
@@ -2045,9 +2062,11 @@ mod tests {
         use super::{DrawType, GameOutcome};
         use crate::{chess::chessmove::Move, chess::types::Square};
 
-        let mut fiftymove_draw =
-            Board::from_fen("rnbqkb1r/pppppppp/5n2/8/3N4/8/PPPPPPPP/RNBQKB1R b KQkq - 100 2")
-                .unwrap();
+        let mut fiftymove_draw = Board::from_fen(
+            "rnbqkb1r/pppppppp/5n2/8/3N4/8/PPPPPPPP/RNBQKB1R b KQkq - 100 2",
+            false,
+        )
+        .unwrap();
         assert_eq!(
             fiftymove_draw.outcome(),
             GameOutcome::Draw(DrawType::FiftyMoves)
@@ -2069,16 +2088,16 @@ mod tests {
             draw_repetition.outcome(),
             GameOutcome::Draw(DrawType::Repetition)
         );
-        let mut stalemate = Board::from_fen("7k/8/6Q1/8/8/8/8/K7 b - - 0 1").unwrap();
+        let mut stalemate = Board::from_fen("7k/8/6Q1/8/8/8/8/K7 b - - 0 1", true).unwrap();
         assert_eq!(stalemate.outcome(), GameOutcome::Draw(DrawType::Stalemate));
         let mut insufficient_material_bare_kings =
-            Board::from_fen("8/8/5k2/8/8/2K5/8/8 b - - 0 1").unwrap();
+            Board::from_fen("8/8/5k2/8/8/2K5/8/8 b - - 0 1", true).unwrap();
         assert_eq!(
             insufficient_material_bare_kings.outcome(),
             GameOutcome::Draw(DrawType::InsufficientMaterial)
         );
         let mut insufficient_material_knights =
-            Board::from_fen("8/8/5k2/8/2N5/2K2N2/8/8 b - - 0 1").unwrap();
+            Board::from_fen("8/8/5k2/8/2N5/2K2N2/8/8 b - - 0 1", true).unwrap();
         assert_eq!(
             insufficient_material_knights.outcome(),
             GameOutcome::Ongoing
@@ -2100,7 +2119,7 @@ mod tests {
             .collect::<Vec<_>>();
         let mut board = Board::new();
         for fen in fens {
-            board.set_from_fen(&fen, false).expect("setfen failed.");
+            board.set_from_fen(&fen, true).expect("setfen failed.");
             let fen_2 = board.to_string();
             assert_eq!(fen, fen_2);
         }
@@ -2130,7 +2149,7 @@ mod tests {
     fn scharnagl_full_works() {
         #![allow(clippy::similar_names)]
         use super::Board;
-        let normal = Board::from_fen(Board::STARTING_FEN).unwrap();
+        let normal = Board::from_fen(Board::STARTING_FEN, true).unwrap();
         let frc = Board::from_frc_idx(518);
         let dfrc = Board::from_dfrc_idx(518 * 960 + 518);
         assert_eq!(normal, frc);
@@ -2142,9 +2161,11 @@ mod tests {
         use super::Board;
         use crate::chess::chessmove::{Move, MoveFlags};
         use crate::chess::types::Square;
-        let board =
-            Board::from_fen("1r2k2r/2pb1pp1/2pp4/p1n5/2P4p/PP2P2P/1qB2PP1/R2QKN1R w KQk - 0 20")
-                .unwrap();
+        let board = Board::from_fen(
+            "1r2k2r/2pb1pp1/2pp4/p1n5/2P4p/PP2P2P/1qB2PP1/R2QKN1R w KQk - 0 20",
+            false,
+        )
+        .unwrap();
         let kingside_castle = Move::new_with_flags(Square::E1, Square::H1, MoveFlags::Castle);
         assert!(!board.is_pseudo_legal(kingside_castle));
     }
@@ -2154,7 +2175,7 @@ mod tests {
         use super::Board;
         use crate::chess::squareset::SquareSet;
 
-        let board = Board::from_fen("3k4/8/8/5N2/8/1P6/8/K1Q1RB2 b - - 0 1").unwrap();
+        let board = Board::from_fen("3k4/8/8/5N2/8/1P6/8/K1Q1RB2 b - - 0 1", true).unwrap();
         assert_eq!(
             board.threats.all,
             SquareSet::from_inner(0x1454_9d56_bddd_5f3f)
@@ -2166,7 +2187,7 @@ mod tests {
         use super::Board;
         use crate::chess::squareset::SquareSet;
 
-        let board = Board::from_fen("2br1q1k/8/6p1/8/2n5/8/8/4K3 w - - 0 1").unwrap();
+        let board = Board::from_fen("2br1q1k/8/6p1/8/2n5/8/8/4K3 w - - 0 1", true).unwrap();
         assert_eq!(
             board.threats.all,
             SquareSet::from_inner(0xfcfa_bbbd_6ab9_2a28)
@@ -2190,9 +2211,11 @@ mod tests {
         use super::Board;
         use crate::chess::chessmove::Move;
         use crate::chess::types::Square;
-        let mut board =
-            Board::from_fen("r1bqkb1r/ppp2ppp/2n5/3np1N1/2B5/8/PPPP1PPP/RNBQK2R w KQkq - 0 6")
-                .unwrap();
+        let mut board = Board::from_fen(
+            "r1bqkb1r/ppp2ppp/2n5/3np1N1/2B5/8/PPPP1PPP/RNBQK2R w KQkq - 0 6",
+            false,
+        )
+        .unwrap();
         // Nxf7!!
         let mv = Move::new(Square::G5, Square::F7);
         let key = board.key_after(mv);
@@ -2216,11 +2239,16 @@ mod tests {
         use crate::chess::piece::Piece;
         use crate::chess::types::Square;
         use crate::makemove::{hash_ep, hash_piece, hash_side};
-        let mut not_ep_capturable =
-            Board::from_fen("rnbqkbnr/ppppp1pp/8/5p2/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2")
-                .unwrap();
-        let mut ep_capturable =
-            Board::from_fen("rnbqkbnr/ppppp1pp/8/4Pp2/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2").unwrap();
+        let mut not_ep_capturable = Board::from_fen(
+            "rnbqkbnr/ppppp1pp/8/5p2/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2",
+            false,
+        )
+        .unwrap();
+        let mut ep_capturable = Board::from_fen(
+            "rnbqkbnr/ppppp1pp/8/4Pp2/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2",
+            false,
+        )
+        .unwrap();
         let d5 = Move::new(Square::D7, Square::D5);
         let mut not_ep_capturable_key = not_ep_capturable.key;
         let mut ep_capturable_key = ep_capturable.key;
@@ -2248,8 +2276,11 @@ mod tests {
         use super::Board;
         use crate::chess::chessmove::Move;
         use crate::chess::types::Square;
-        let mut board =
-            Board::from_fen("rnbqkbnr/1ppppppp/p7/P7/8/8/1PPPPPPP/RNBQKBNR b KQkq - 0 2").unwrap();
+        let mut board = Board::from_fen(
+            "rnbqkbnr/1ppppppp/p7/P7/8/8/1PPPPPPP/RNBQKBNR b KQkq - 0 2",
+            false,
+        )
+        .unwrap();
         assert!(board.make_move_simple(Move::new(Square::B7, Square::B5)));
         assert_eq!(board.ep_sq, Some(Square::B6));
     }
