@@ -564,7 +564,7 @@ impl CastlingRights {
         }
     }
 
-    pub const fn display(&self, chess_960: bool) -> CastlingRightsDisplay {
+    pub const fn display(&self, chess_960: bool) -> CastlingRightsDisplay<'_> {
         CastlingRightsDisplay {
             rights: self,
             chess_960,

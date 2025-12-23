@@ -20,6 +20,29 @@ pub enum WDL {
     Draw,
 }
 
+fn serialise_33_f64_array<S>(arr: &[f64; 33], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    arr.serialize(serializer)
+}
+
+fn deserialise_33_f64_array<'de, D>(deserializer: D) -> Result<[f64; 33], D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let vec: Vec<f64> = Vec::deserialize(deserializer)?;
+    if vec.len() != 33 {
+        return Err(serde::de::Error::custom(format!(
+            "expected array of length 33, got length {}",
+            vec.len()
+        )));
+    }
+    let mut arr = [0.0; 33];
+    arr.copy_from_slice(&vec);
+    Ok(arr)
+}
+
 /// The configuration for a filter that can be applied to a game during unpacking.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[allow(clippy::struct_field_names)]
@@ -57,6 +80,12 @@ pub struct Filter {
     pub mom_target: u32,
     /// The internal heuristic scale factor for the WDL model.
     pub wdl_heuristic_scale: f64,
+    /// Whether to skip positions based on the material count table.
+    pub material_count_filtered: bool,
+    /// Probability that a position with a particular material count is skipped.
+    #[serde(serialize_with = "serialise_33_f64_array")]
+    #[serde(deserialize_with = "deserialise_33_f64_array")]
+    pub material_count_probabilities: [f64; 33],
 }
 
 impl Default for Filter {
@@ -83,6 +112,8 @@ impl Default for Filter {
             material_max: 78,
             mom_target: 58,
             wdl_heuristic_scale: 1.5,
+            material_count_filtered: false,
+            material_count_probabilities: [0.0; 33],
         }
     }
 }
@@ -105,6 +136,8 @@ impl Filter {
         material_max: 78,
         mom_target: 58,
         wdl_heuristic_scale: 1.0,
+        material_count_filtered: false,
+        material_count_probabilities: [0.0; 33],
     };
 
     fn wdl_model(&self, material: u32, eval: i32) -> (f64, f64, f64) {
@@ -175,6 +208,13 @@ impl Filter {
             && rng.random_bool(1.0 - self.result_chance(board.material_count(), eval, wdl))
         {
             return true;
+        }
+        if self.material_count_filtered {
+            let index = board.pieces.occupied().count().min(32) as usize;
+            let prob = self.material_count_probabilities[index];
+            if rng.random_bool(prob) {
+                return true;
+            }
         }
         if self.max_eval_incorrectness != u32::MAX {
             // if the game was a draw, prune evals that are too far away from a draw.
