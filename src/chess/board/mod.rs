@@ -19,10 +19,7 @@ use crate::{
         squareset::SquareSet,
         types::{CastlingRights, CheckState, File, Rank, Square, Undo},
     },
-    // cuckoo,
     makemove::{hash_castling, hash_ep, hash_piece, hash_side},
-    // search::pv::PVariation,
-    // threadlocal::ThreadData,
 };
 
 use crate::chess::piecelayout::{PieceLayout, Threats};
