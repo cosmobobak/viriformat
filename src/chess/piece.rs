@@ -89,11 +89,7 @@ impl Display for Piece {
 
 impl Colour {
     pub const fn new(v: bool) -> Self {
-        if v {
-            Self::Black
-        } else {
-            Self::White
-        }
+        if v { Self::Black } else { Self::White }
     }
 
     pub const fn flip(self) -> Self {
@@ -131,7 +127,7 @@ impl PieceType {
     /// # Safety
     /// The caller must ensure that `v` is a valid index for the `PieceType` enum.
     pub const unsafe fn from_index_unchecked(v: u8) -> Self {
-        std::mem::transmute(v)
+        unsafe { std::mem::transmute(v) }
     }
 
     pub const fn inner(self) -> u8 {

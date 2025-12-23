@@ -3,7 +3,6 @@ use arrayvec::ArrayVec;
 use std::{
     fmt::{Display, Formatter},
     ops::{Deref, DerefMut},
-    sync::atomic::Ordering,
 };
 
 use crate::{
@@ -1002,7 +1001,7 @@ mod tests {
 
     #[test]
     fn ray_test() {
-        use super::{Square, RAY_BETWEEN};
+        use super::{RAY_BETWEEN, Square};
         use crate::chess::squareset::SquareSet;
         assert_eq!(RAY_BETWEEN[Square::A1][Square::A1], SquareSet::EMPTY);
         assert_eq!(RAY_BETWEEN[Square::A1][Square::B1], SquareSet::EMPTY);
@@ -1023,7 +1022,7 @@ mod tests {
 
     #[test]
     fn ray_diag_test() {
-        use super::{Square, RAY_BETWEEN};
+        use super::{RAY_BETWEEN, Square};
         let ray = RAY_BETWEEN[Square::B5][Square::E8];
         assert_eq!(ray, Square::C6.as_set() | Square::D7.as_set());
     }

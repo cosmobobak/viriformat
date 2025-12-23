@@ -22,11 +22,7 @@ macro_rules! max {
         max
     }};
     ($a:expr, $b:expr) => {
-        if $a > $b {
-            $a
-        } else {
-            $b
-        }
+        if $a > $b { $a } else { $b }
     };
 }
 
@@ -41,11 +37,7 @@ macro_rules! min {
         min
     }};
     ($a:expr, $b:expr) => {
-        if $a < $b {
-            $a
-        } else {
-            $b
-        }
+        if $a < $b { $a } else { $b }
     };
 }
 
@@ -243,7 +235,7 @@ impl Square {
     /// You may only call this function with value of `inner` less than 64.
     pub const unsafe fn new_unchecked(inner: u8) -> Self {
         debug_assert!(inner < 64);
-        std::mem::transmute(inner)
+        unsafe { std::mem::transmute(inner) }
     }
 
     pub const fn flip_rank(self) -> Self {
@@ -336,7 +328,7 @@ impl Square {
             clippy::cast_sign_loss
         )]
         let res = self as u8 + offset;
-        Self::new_unchecked(res)
+        unsafe { Self::new_unchecked(res) }
     }
 
     /// SAFETY: You may not call this function with a square and offset such that

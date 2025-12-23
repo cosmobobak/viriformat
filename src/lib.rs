@@ -20,7 +20,7 @@ mod tests {
     #[test]
     fn from_ep_startpos_roundtrip() {
         const FEN: &str = "r1bqkbnr/pppp1pp1/2n5/4p3/4P1Pp/2N2N2/PPPP1P1P/R1BQKBR1 b Qkq g3 0 5";
-        let board = Board::from_fen(FEN).unwrap();
+        let board = Board::from_fen(FEN, false).unwrap();
         let mut game = Game::new(&board);
         game.add_move(
             Move::new_with_flags(Square::H4, Square::G3, MoveFlags::EnPassant),
