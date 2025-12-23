@@ -518,7 +518,7 @@ impl Game {
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod tests {
-    use crate::chess::{piece::Colour, CHESS960};
+    use crate::chess::{piece::Colour};
 
     use super::*;
 
@@ -588,10 +588,10 @@ mod tests {
             assert_eq!(lhs.threats(), rhs.threats(), "threats {msg}");
             assert_eq!(lhs.height(), rhs.height(), "height {msg}");
         }
-        CHESS960.store(true, std::sync::atomic::Ordering::SeqCst);
+
         // Grab `valid.sfens` from `cozy-chess` to run test
         for sfen in include_str!("valid.sfens").lines() {
-            let board = Board::from_fen(sfen).unwrap();
+            let board = Board::from_fen(sfen, true).unwrap();
             let packed = marlinformat::PackedBoard::pack(&board, 0, 0, 0);
             let (unpacked, _, _, _) = packed.unpack();
             check_eq(&board, &unpacked, sfen);

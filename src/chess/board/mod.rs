@@ -21,7 +21,6 @@ use crate::{
         piece::{Black, Col, Colour, Piece, PieceType, White},
         squareset::SquareSet,
         types::{CastlingRights, CheckState, File, Rank, Square, Undo},
-        CHESS960,
     },
     // cuckoo,
     makemove::{hash_castling, hash_ep, hash_piece, hash_side},
@@ -108,8 +107,11 @@ pub struct Board {
     /// The Zobrist hash of the major pieces on the board.
     major_key: u64,
 
-    /// Squares that the opponent attacks
+    /// Squares that the opponent attacks.
     threats: Threats,
+
+    // Denotes the variant.
+    chess960: bool;
 
     height: usize,
     history: Vec<Undo>,
@@ -411,6 +413,7 @@ impl Board {
         self.key = 0;
         self.pawn_key = 0;
         self.threats = Threats::default();
+        self.chess960 = false;
         self.history.clear();
     }
 
@@ -619,7 +622,7 @@ impl Board {
         out.map(Option::unwrap)
     }
 
-    pub fn set_from_fen(&mut self, fen: &str) -> anyhow::Result<()> {
+    pub fn set_from_fen(&mut self, fen: &str, chess960: bool) -> anyhow::Result<()> {
         if !fen.is_ascii() {
             bail!(format!("FEN string is not ASCII: {fen}"));
         }
@@ -628,6 +631,8 @@ impl Board {
         let mut file = File::A;
 
         self.reset();
+
+        self.chess960 = chess960;
 
         let fen_chars = fen.as_bytes();
         let split_idx = fen_chars
@@ -699,20 +704,20 @@ impl Board {
         Ok(())
     }
 
-    pub fn set_startpos(&mut self) {
-        let starting_fen = if CHESS960.load(Ordering::SeqCst) {
+    pub fn set_startpos(&mut self, chess960: bool) {
+        let starting_fen = if self.chess960 {
             Self::STARTING_FEN_960
         } else {
             Self::STARTING_FEN
         };
-        self.set_from_fen(starting_fen)
+        self.set_from_fen(starting_fen, chess960)
             .expect("for some reason, STARTING_FEN is now broken.");
     }
 
     #[cfg(test)]
-    pub fn from_fen(fen: &str) -> anyhow::Result<Self> {
+    pub fn from_fen(fen: &str, chess960: bool) -> anyhow::Result<Self> {
         let mut out = Self::new();
-        out.set_from_fen(fen)?;
+        out.set_from_fen(fen, chess960)?;
         Ok(out)
     }
 
@@ -749,7 +754,7 @@ impl Board {
         match castling_part {
             None => bail!("FEN string is invalid, expected castling part."),
             Some(b"-") => self.castle_perm = CastlingRights::NONE,
-            Some(castling) if !CHESS960.load(Ordering::SeqCst) => {
+            Some(castling) if !self.chess960 => {
                 for &c in castling {
                     match c {
                         b'K' => self.castle_perm.wk = Some(Square::H1),
@@ -1605,7 +1610,7 @@ impl Board {
         let mut list = MoveList::new();
         self.generate_moves(&mut list);
 
-        let frc_cleanup = !CHESS960.load(Ordering::Relaxed);
+        let frc_cleanup = !self.chess960;
         let res = list
             .iter_moves()
             .copied()
@@ -2024,11 +2029,11 @@ mod tests {
 
         let mut board_1 = Board::new();
         board_1
-            .set_from_fen(Board::STARTING_FEN)
+            .set_from_fen(Board::STARTING_FEN, false)
             .expect("setfen failed.");
         board_1.check_validity().unwrap();
 
-        let board_2 = Board::from_fen(Board::STARTING_FEN).expect("setfen failed.");
+        let board_2 = Board::from_fen(Board::STARTING_FEN, false).expect("setfen failed.");
         board_2.check_validity().unwrap();
 
         assert_eq!(board_1, board_2);
@@ -2095,7 +2100,7 @@ mod tests {
             .collect::<Vec<_>>();
         let mut board = Board::new();
         for fen in fens {
-            board.set_from_fen(&fen).expect("setfen failed.");
+            board.set_from_fen(&fen, false).expect("setfen failed.");
             let fen_2 = board.to_string();
             assert_eq!(fen, fen_2);
         }
