@@ -44,7 +44,7 @@ A `Score` is a signed 16-bit integer representing a white-relative score for sai
 
 ```
 00000000: ffff 0000 0000 ffff                       ; occupancy: startpos layout
-00000008: 6124 5216 0000 0000 8888 8888 e9ac da9e   ; pieces: startpos layout
+00000008: 1642 2561 0000 0000 8888 8888 9eca ade9   ; pieces: startpos layout
 00000018: 40                                        ; side to move: white
                                                     ; en-passant: none
 00000019: 00                                        ; halfmove clock: 0
