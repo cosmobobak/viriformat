@@ -5,9 +5,9 @@ use crate::chess::{
     chessmove::Move,
 };
 
-use self::marlinformat::{util::I16Le, PackedBoard};
+use self::marlinformat::{PackedBoard, util::I16Le};
 use anyhow::Context;
-use rand::{rngs::ThreadRng, Rng};
+use rand::{Rng, rngs::ThreadRng};
 use serde::{Deserialize, Serialize};
 
 mod marlinformat;
@@ -261,6 +261,45 @@ const SEQUENCE_ELEM_SIZE: usize =
     std::mem::size_of::<Move>() + std::mem::size_of::<marlinformat::util::I16Le>();
 const NULL_TERMINATOR: [u8; SEQUENCE_ELEM_SIZE] = [0; SEQUENCE_ELEM_SIZE];
 
+/// Reads the next `PackedBoard` from the stream, skipping over any
+/// reserved extension records (see README.md § Reserved extension).
+fn read_packed_board(
+    reader: &mut impl std::io::BufRead,
+) -> std::io::Result<[u8; std::mem::size_of::<PackedBoard>()]> {
+    loop {
+        // The first eight bytes are the occupancy. A zero occupancy is never a valid
+        // `PackedBoard` (every position has two kings), so it instead marks an
+        // extension record, which we skip before reading the next record.
+        let mut occupancy = [0; 8];
+        reader.read_exact(&mut occupancy)?;
+        if occupancy == [0; 8] {
+            skip_extension_record(reader)?;
+            continue;
+        }
+        let mut bytes = [0; std::mem::size_of::<PackedBoard>()];
+        bytes[..8].copy_from_slice(&occupancy);
+        reader.read_exact(&mut bytes[8..])?;
+        return Ok(bytes);
+    }
+}
+
+/// Reads and discards a reserved extension record whose eight-byte zero sentinel has
+/// already been consumed.
+fn skip_extension_record(reader: &mut impl std::io::BufRead) -> std::io::Result<()> {
+    let mut header = [0; 4]; // 16-bit extension ID followed by 16-bit payload length
+    reader.read_exact(&mut header)?;
+    let payload_len = u16::from_le_bytes([header[2], header[3]]);
+    // Skip the payload and the trailing four-byte terminator.
+    let mut remaining = u64::from(payload_len) + NULL_TERMINATOR.len() as u64;
+    let mut scratch = [0; 1024];
+    while remaining > 0 {
+        let want = remaining.min(scratch.len() as u64) as usize;
+        reader.read_exact(&mut scratch[..want])?;
+        remaining -= want as u64;
+    }
+    Ok(())
+}
+
 impl WDL {
     pub fn from_packed(packed: u8) -> Self {
         match packed {
@@ -327,9 +366,7 @@ impl Game {
         reader: &mut impl std::io::BufRead,
         buffer: Vec<(Move, marlinformat::util::I16Le)>,
     ) -> std::io::Result<Self> {
-        let mut initial_position = [0; std::mem::size_of::<marlinformat::PackedBoard>()];
-        reader.read_exact(&mut initial_position)?;
-        let initial_position = PackedBoard::from_bytes(initial_position);
+        let initial_position = PackedBoard::from_bytes(read_packed_board(reader)?);
         #[cfg(debug_assertions)]
         let (mut real_board, _, _, _) = initial_position.unpack();
         #[cfg(debug_assertions)]
@@ -388,8 +425,7 @@ impl Game {
         reader: &mut impl std::io::BufRead,
         buffer: &mut Vec<u8>,
     ) -> std::io::Result<()> {
-        let mut initial_position = [0; std::mem::size_of::<marlinformat::PackedBoard>()];
-        reader.read_exact(&mut initial_position)?;
+        let initial_position = read_packed_board(reader)?;
         buffer.extend_from_slice(&initial_position);
         loop {
             let mut buf = [0; SEQUENCE_ELEM_SIZE];
@@ -518,7 +554,7 @@ impl Game {
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod tests {
-    use crate::chess::{piece::Colour};
+    use crate::chess::piece::Colour;
 
     use super::*;
 
@@ -607,6 +643,30 @@ mod tests {
 
         let mut buf = Vec::new();
         game.serialise_into(&mut buf).unwrap();
+        let game2 = Game::deserialise_from(&mut buf.as_slice(), Vec::new()).unwrap();
+        assert_eq!(game.initial_position, game2.initial_position);
+        assert_eq!(game.moves, game2.moves);
+    }
+
+    #[test]
+    fn skips_reserved_extension_record() {
+        let mut game = Game::new(&Board::default());
+        game.add_move(Move::new(Square::E2, Square::E4), 0);
+        game.add_move(Move::new(Square::E7, Square::E5), -314);
+
+        let payload: [u8; _] = [0xAB, 0x00, 0x00, 0x00, 0x00];
+        let mut buf = Vec::new();
+
+        // write an extension record:
+        buf.extend_from_slice(&[0; 8]); // zero occupancy marks an extension record
+        buf.extend_from_slice(&7u16.to_le_bytes()); // extension ID
+        buf.extend_from_slice(&(payload.len() as u16).to_le_bytes()); // payload length
+        buf.extend_from_slice(&payload);
+        buf.extend_from_slice(&NULL_TERMINATOR); // record terminator
+
+        // then put a normal game after it:
+        game.serialise_into(&mut buf).unwrap();
+
         let game2 = Game::deserialise_from(&mut buf.as_slice(), Vec::new()).unwrap();
         assert_eq!(game.initial_position, game2.initial_position);
         assert_eq!(game.moves, game2.moves);
