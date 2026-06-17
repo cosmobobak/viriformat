@@ -1,6 +1,6 @@
 viriformat is a crate for the game data representation used by the viridithas chess engine.
 
-## Specification
+# Specification
 
 All integers in viriformat are little-endian.
 
@@ -11,7 +11,7 @@ A viriformat file consists of one or more `Game`s concatenated together.
 A `Game` consists of a marlinformat `PackedBoard` followed by zero or more `Move` and `Score` pairs, terminated by four zero bytes.
 
 A `PackedBoard` is a structure of:
-- A 64-bit occupied-piece bitboard, which must not be zero.
+- A 64-bit occupied-piece bitboard, which must not be zero (a zero occupancy denotes a [reserved extension](#reserved-extension) rather than a `Game`).
 - A 32-entry array of 4-bit pieces, where the `i`th entry corresponds to the `i`th least-significant set bit in the occupied-piece bitboard.
   - The lower three bits of a piece corresponds to its type: pawn is 0, knight is 1, bishop is 2, rook is 3, queen is 4, king is 5.
   - Castling rights are represented by setting the piece type of the relevant rook (e.g. in classical chess, the a1 rook for queenside, or the h1 rook for kingside) to 6 to represent an unmoved rook.
@@ -62,6 +62,15 @@ A `Score` is a signed 16-bit integer representing a white-relative score for sai
 
 # Reserved extension
 
-A `PackedBoard` with an occupied-piece bitboard that has the value of zero is reserved for future extension.
+A `Game` whose first eight bytes[^1] are all zero is not a `Game` but a *reserved extension record*.
 
-The contents of such an extension are left unspecified, except that it must be terminated with four zero bytes.
+An extension record is:
+- 8 bytes of zero, identifying the record as an extension.
+- A 16-bit extension ID, identifying which extension this is.
+- A 16-bit length `N`, giving the size in bytes of the payload that follows.
+- `N` bytes of payload, whose contents are defined by the extension.
+- Four zero bytes, terminating the record.
+
+A consumer that does not recognise the extension ID skips the `N` payload bytes (and the trailing four zero bytes) and continues with the next record.
+
+[^1]: The position where a `PackedBoard`'s occupied-piece bitboard would be.
