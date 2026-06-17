@@ -66,7 +66,7 @@ A `Game` whose first eight bytes[^1] are all zero is not a `Game` but a *reserve
 
 An extension record is:
 - 8 bytes of zero, identifying the record as an extension.
-- A 16-bit extension ID, identifying which extension this is.
+- A 16-bit extension ID, identifying which extension this is. At present no extensions are recorded by the standard, authors are encouraged to submit theirs.
 - A 16-bit length `N`, giving the size in bytes of the payload that follows.
 - `N` bytes of payload, whose contents are defined by the extension.
 - Four zero bytes, terminating the record.
