@@ -73,4 +73,4 @@ An extension record is:
 
 A consumer that does not recognise the extension ID skips the `N` payload bytes (and the trailing four zero bytes) and continues with the next record.
 
-[^1]: The position where a `PackedBoard`'s occupied-piece bitboard would be.
+[^1]: The location where a `PackedBoard`'s occupied-piece bitboard would be.
