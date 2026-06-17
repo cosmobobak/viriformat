@@ -186,7 +186,9 @@ impl PieceLayout {
                 return Some(Piece::new(colour, piece));
             }
         }
-        panic!("Bit set in colour square-set for {colour:?} but not in piece square-sets! square is {sq}");
+        panic!(
+            "Bit set in colour square-set for {colour:?} but not in piece square-sets! square is {sq}"
+        );
     }
 
     fn any_bbs_overlapping(&self) -> bool {
