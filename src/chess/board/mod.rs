@@ -161,25 +161,27 @@ impl Board {
         wdl: u8,
         eval: i16,
     ) -> Result<bulletformat::ChessBoard, anyhow::Error> {
-        let mut bbs = [0; 8];
-        let piece_layout = &self.pieces;
-        bbs[0] = piece_layout.occupied_co(Colour::White).inner();
-        bbs[1] = piece_layout.occupied_co(Colour::Black).inner();
-        bbs[2] = piece_layout.of_type(PieceType::Pawn).inner();
-        bbs[3] = piece_layout.of_type(PieceType::Knight).inner();
-        bbs[4] = piece_layout.of_type(PieceType::Bishop).inner();
-        bbs[5] = piece_layout.of_type(PieceType::Rook).inner();
-        bbs[6] = piece_layout.of_type(PieceType::Queen).inner();
-        bbs[7] = piece_layout.of_type(PieceType::King).inner();
-        let bulletformat = bulletformat::ChessBoard::from_raw(
-            bbs,
-            (self.turn() != Colour::White).into(),
-            eval,
-            f32::from(wdl) / 2.0,
-        )
-        .map_err(|e| anyhow::anyhow!(e))
-        .with_context(|| "Failed to convert raw components into bulletformat::ChessBoard.")?;
-        Ok(bulletformat)
+        let stm = self.turn();
+        let occ = self.pieces.occupied().inner();
+        let (occ, score, result) = match stm {
+            Colour::White => (occ, eval, wdl),
+            Colour::Black => (occ.swap_bytes(), -eval, 2 - wdl),
+        };
+        let mut pcs = [0; 16];
+        for (i, sq) in SquareSet::from_inner(occ).iter().enumerate() {
+            let piece = self.piece_array[sq.relative_to(stm)].unwrap();
+            let colour = u8::from(piece.colour() != stm) << 3;
+            pcs[i / 2] |= (colour | piece.piece_type().inner()) << (4 * (i & 1));
+        }
+        Ok(bulletformat::ChessBoard {
+            occ,
+            pcs,
+            score,
+            result,
+            ksq: self.king_sq(stm).relative_to(stm).inner(),
+            opp_ksq: self.king_sq(stm.flip()).relative_to(stm.flip()).inner(),
+            extra: [0; 3],
+        })
     }
 
     pub const fn ep_sq(&self) -> Option<Square> {
